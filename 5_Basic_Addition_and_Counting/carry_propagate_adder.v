@@ -19,5 +19,5 @@ wire [WIDTH-2:0] Carry_tmp ;
 assign {c_out, Carry_tmp} = Generate | (Propagate & {Carry_tmp,c_in});
 assign sum = Propagate ^ {Carry_tmp,c_in};
 
-
 endmodule
+//对于这里的CPA，我们还会在第六章进行详细讲解

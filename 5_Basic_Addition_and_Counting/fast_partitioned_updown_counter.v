@@ -3,6 +3,8 @@ module fast_partitioned_updown_counter #(
     parameter W0 = 2,  // Stage 0 的位宽 (极短，运行在最高频)
     parameter W1 = 6,  // Stage 1 的位宽 (中等)
     parameter W2 = 24  // Stage 2 的位宽 (极长，但计算时间裕量极大)
+    //假设每一位加法器的门延迟为Δ，那么为了让系统跑在最高频，时钟周期需满足：
+    //Tclk≈W0*Δ
     //事实上，对于W0,W1,W2的选取，并不是任意的，需要满足：
     //W1 ≤ W0 * 2^W0 且 W2 ≤ W0 * 2^(W0 + W1)
     //也就是说，对于W0=2,W1只需要小于8都行，而W2小于2048都可以满足条件
