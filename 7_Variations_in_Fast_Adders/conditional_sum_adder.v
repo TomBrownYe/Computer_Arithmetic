@@ -15,7 +15,7 @@ module conditional_sum_adder #(
     // 1. 计算完美二叉树所需的物理参数
     
         // 树的总层数 (例如 WIDTH=13，STAGES=4)
-    localparam STAGES = $clog2(WIDTH); 
+        localparam STAGES = $clog2(WIDTH); 
     
         // 补齐后的完美物理位宽 (例如 STAGES=4, PAD_WIDTH=16)
         localparam PAD_WIDTH = 1 << STAGES; 

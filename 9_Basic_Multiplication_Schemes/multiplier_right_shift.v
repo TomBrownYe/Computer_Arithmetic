@@ -1,4 +1,4 @@
-//本架构参见Fig9.4（a）,无符号右移算法乘法器
+//本架构参见Fig9.4（a）,无符号右移算术乘法器
 `include"k_bit_adder.v"
 
 module multiplier_right_shift #(
