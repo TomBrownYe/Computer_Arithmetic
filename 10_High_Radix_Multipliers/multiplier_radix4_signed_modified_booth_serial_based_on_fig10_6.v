@@ -7,7 +7,7 @@
 
 `include"k_bit_adder_in_10.v"
 
-module multiplier_modified_booth_recoding #(
+module multiplier_radix4_signed_modified_booth_serial_based_on_fig10_6 #(
     parameter WIDTH = 32  // 参数化位宽，默认为 32 位
 )(
     input  wire                 clk,        // 系统时钟
@@ -24,14 +24,59 @@ module multiplier_modified_booth_recoding #(
     // 数据输出
     output wire [2*WIDTH-1:0]       product       // 2k位乘积 (p)
 );
-    
-    // 控制逻辑设定
-    
-        // 计数器
+    // 内部信号
+        // 控制逻辑设定
+
+            // 计数器
             parameter HALF_WIDTH = WIDTH / 2;
             parameter CNT_WIDTH = $clog2(HALF_WIDTH); // 计数器位宽
-        
             reg [CNT_WIDTH-1:0] cnt; // 计数器
+
+            // 有限状态机
+            parameter IDLE = 0; // 空闲状态
+            parameter WORK = 1; // 工作状态
+            parameter DONE = 2; // 完成状态
+            reg[1:0] state, next_state; // 当前状态与下一状态
+
+        // 寄存器设定
+
+            // 被乘数寄存器
+            reg [WIDTH-1:0] multiplicand_reg; // 锁存的被乘数
+
+            // 共享移位寄存器，高k位存放累加部分积，低k位用于存放未使用的乘数
+            wire [WIDTH+1:0] sum; // 加法器输出的部分积高位和
+            wire carry; // 加法器输出的进位
+            reg [2*WIDTH-1:0] partial_product; // 共享移位寄存器
+
+            // 存储低位寄存器，保留最低位被移出去的x_i-1
+            reg Init0; // 保存移出乘数的最低位
+
+        // Recoding logic；Booth 重编码逻辑
+        // Booth 重编码逻辑
+
+            wire [2:0] x_triplet; // 取出当前的x_i和x_i+1
+            // 加/减法控制信号，0代表加，1代表减
+            wire neg; // Booth 重编码的加/减控制信号
+            // 非0使能信号，0代表倍数为0，1代表倍数非0
+            wire non0; // Booth 重编码的非零倍数使能信号
+            // 2倍幅值选择信号，0代表幅值为1a，1代表幅值为2a
+            wire two; // Booth 重编码的 1 倍或 2 倍幅值选择信号
+
+        // MUX：倍数多路选择器
+        // 倍数多路选择器逻辑
+
+            wire Select; // MUX 的 1 倍或 2 倍选择信号
+            wire Enable; // MUX 的非零倍数使能信号
+            wire [WIDTH:0] MUX; // MUX 输出的被乘数倍数值
+
+        // k位加法器
+
+            wire [WIDTH+1:0] sub_add1; // 加法器第一个输入操作数
+            wire [WIDTH+1:0] sub_add2; // 加法器第二个输入操作数
+
+    // 控制逻辑设定
+
+        // 计数器
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     cnt <= {CNT_WIDTH{1'b0}};
@@ -46,11 +91,6 @@ module multiplier_modified_booth_recoding #(
 
         // 有限状态机
 
-            parameter IDLE = 0; // 空闲状态
-            parameter WORK = 1; // 工作状态
-            parameter DONE = 2; // 完成状态
-
-            reg[1:0] state, next_state;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     state <= IDLE;
@@ -91,7 +131,6 @@ module multiplier_modified_booth_recoding #(
     // 寄存器设定
 
         // 被乘数寄存器
-            reg [WIDTH-1:0] multiplicand_reg; 
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     multiplicand_reg <= {WIDTH{1'b0}};
@@ -102,9 +141,6 @@ module multiplier_modified_booth_recoding #(
             end
 
         // 共享移位寄存器，高k位存放累加部分积，低k位用于存放未使用的乘数
-            wire [WIDTH+1:0] sum;
-            wire carry;
-            reg [2*WIDTH-1:0] partial_product; 
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     partial_product <= {(2*WIDTH){1'b0}};
@@ -118,7 +154,6 @@ module multiplier_modified_booth_recoding #(
             end
 
         // 存储低位寄存器，保留最低位被移出去的x_i-1
-            reg Init0;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     Init0 <= 1'b0;
@@ -131,28 +166,30 @@ module multiplier_modified_booth_recoding #(
                 end
             end
     
-    // Recoding logic
+    // Recoding logic；Booth 重编码逻辑
+    // Booth 重编码逻辑
 
-        wire [2:0] x_triplet = {partial_product[1:0], Init0}; // 取出当前的x_i和x_i+1
+        assign x_triplet = {partial_product[1:0], Init0}; // 取出当前的x_i和x_i+1
         // 加/减法控制信号，0代表加，1代表减
-        wire neg = (x_triplet == 3'b100) || (x_triplet == 3'b101) || (x_triplet == 3'b110);
+        assign neg = (x_triplet == 3'b100) || (x_triplet == 3'b101) || (x_triplet == 3'b110);
         // 非0使能信号，0代表倍数为0，1代表倍数非0
-        wire non0 = (x_triplet != 3'b000) && (x_triplet != 3'b111);
+        assign non0 = (x_triplet != 3'b000) && (x_triplet != 3'b111);
         // 2倍幅值选择信号，0代表幅值为1a，1代表幅值为2a
-        wire two = (x_triplet == 3'b011) || (x_triplet == 3'b100);
+        assign two = (x_triplet == 3'b011) || (x_triplet == 3'b100);
 
-    // MUX
+    // MUX；倍数多路选择器逻辑
+    // 倍数多路选择器逻辑
 
-        wire Select = two;
-        wire Enable = non0;
+        assign Select = two;
+        assign Enable = non0;
         
-        wire [WIDTH:0] MUX = Enable ? (Select ? {multiplicand_reg, 1'b0} 
+        assign MUX = Enable ? (Select ? {multiplicand_reg, 1'b0}
                             : {multiplicand_reg[WIDTH-1], multiplicand_reg}) : {(WIDTH+1){1'b0}};
 
     // k位加法器
 
-        wire [WIDTH+1:0] sub_add1 = neg ? ~{MUX[WIDTH],MUX} : {MUX[WIDTH],MUX};
-        wire [WIDTH+1:0] sub_add2 = {{2{partial_product[2*WIDTH-1]}}, partial_product[2*WIDTH-1:WIDTH]};
+        assign sub_add1 = neg ? ~{MUX[WIDTH],MUX} : {MUX[WIDTH],MUX};
+        assign sub_add2 = {{2{partial_product[2*WIDTH-1]}}, partial_product[2*WIDTH-1:WIDTH]};
 
         k_bit_adder #(.WIDTH(WIDTH+2))k_bit_inst(
             .x(sub_add1),

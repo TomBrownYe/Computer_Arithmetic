@@ -3,7 +3,7 @@
 `include "carry_save_adder_in_10.v"
 `include "Booth_recoder_and_selector.v"
 
-module multiplier_radix4_booth_csa #(
+module multiplier_radix4_signed_booth_stored_carry_csa_serial_fig10_9 #(
     parameter WIDTH = 32  // 参数化位宽，默认为 32 位（需为偶数）
 )(
     input  wire                 clk,          // 系统时钟
@@ -14,13 +14,63 @@ module multiplier_radix4_booth_csa #(
     input  wire [WIDTH-1:0]     multiplier,   // 有符号补码乘数 (x)
     output wire [2*WIDTH-1:0]   product       // 2k位有符号补码乘积 (p)
 );
+    // 内部信号
+        // 控制逻辑设定
+
+            // 计数器
+                parameter HALF_WIDTH = WIDTH / 2;
+                parameter CNT_WIDTH = $clog2(HALF_WIDTH); // 计数器位宽
+                reg [CNT_WIDTH-1:0] cnt; // 计数器
+
+            // 有限状态机
+                parameter IDLE  = 0; // 空闲状态
+                parameter WORK  = 1; // 工作状态
+                parameter MERGE = 2; // 合并状态（持续1拍，用底部的k位加法器将最后残留的pp_sum和pp_carry以及FF中的进位合并）
+                parameter DONE  = 3; // 完成状态
+                reg[1:0] state, next_state; // 当前状态与下一状态
+
+        // 寄存器设定
+
+            // 被乘数寄存器
+                reg [WIDTH-1:0] multiplicand_reg; // 锁存的被乘数
+
+            // 低半区共享移位寄存器pp_low
+                reg [WIDTH-1:0] pp_low; // 低半区共享移位寄存器
+
+            // 存储低位寄存器，保留最低位被移出去的x_i-1
+                reg Init0; // 保存移出乘数的最低位
+
+            // 2位加法器存储进位寄存器（carry-FF），用于存储上一次的进位输出
+                reg carry_FF; // 2 位加法器的进位寄存器
+
+            // 高半区pp_sum寄存器
+                reg [WIDTH+1:0] pp_sum; // 高半区部分积和寄存器
+
+            // 高半区pp_carry寄存器
+                reg [WIDTH+1:0] pp_carry; // 高半区部分积进位寄存器
+
+        // Booth recoder & selector；Booth 重编码器和倍数选择器
+        // Booth 重编码器与倍数选择器
+
+            wire [WIDTH+1:0] z_mult; // Booth 选择器输出的部分积
+            wire extra_dot; // 负倍数对应的额外进位补偿
+
+        // CSA；进位保存加法器
+
+            wire [WIDTH+1:0] csa_sum, csa_carry; // CSA 输出的和与进位
+
+        // 2位加法器
+
+            wire [1:0] add2_sum; // 2 位加法器的和
+            wire add2_cout; // 2 位加法器的进位
+
+        // k+2位合并加法器
+
+            wire [WIDTH+1:0] adder_sum; // k+2位合并加法器的和
+
     // 控制逻辑设定
     
         // 计数器
-            parameter HALF_WIDTH = WIDTH / 2;
-            parameter CNT_WIDTH = $clog2(HALF_WIDTH); // 计数器位宽
-        
-            reg [CNT_WIDTH-1:0] cnt; // 计数器
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     cnt <= {CNT_WIDTH{1'b0}};
@@ -34,12 +84,6 @@ module multiplier_radix4_booth_csa #(
             end
 
         // 有限状态机
-            parameter IDLE  = 0; // 空闲状态
-            parameter WORK  = 1; // 工作状态
-            parameter MERGE = 2; // 合并状态（持续1拍，用底部的k位加法器将最后残留的pp_sum和pp_carry以及FF中的进位合并）
-            parameter DONE  = 3; // 完成状态
-
-            reg[1:0] state, next_state;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     state <= IDLE;
@@ -82,7 +126,6 @@ module multiplier_radix4_booth_csa #(
     // 寄存器设定
 
         // 被乘数寄存器
-            reg [WIDTH-1:0] multiplicand_reg; 
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     multiplicand_reg <= {WIDTH{1'b0}};
@@ -93,7 +136,6 @@ module multiplier_radix4_booth_csa #(
             end
         
         // 低半区共享移位寄存器pp_low
-            reg [WIDTH-1:0] pp_low;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     pp_low <= {WIDTH{1'b0}};
@@ -107,7 +149,6 @@ module multiplier_radix4_booth_csa #(
             end
         
         // 存储低位寄存器，保留最低位被移出去的x_i-1
-            reg Init0;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     Init0 <= 1'b0;
@@ -121,7 +162,6 @@ module multiplier_radix4_booth_csa #(
             end
         
         // 2位加法器存储进位寄存器（carry-FF），用于存储上一次的进位输出
-            reg carry_FF;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     carry_FF <= 1'b0;
@@ -135,7 +175,6 @@ module multiplier_radix4_booth_csa #(
             end 
         
         // 高半区pp_sum寄存器
-            reg [WIDTH+1:0] pp_sum;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     pp_sum <= {(WIDTH+2){1'b0}};
@@ -152,7 +191,6 @@ module multiplier_radix4_booth_csa #(
             end
         
         // 高半区pp_carry寄存器
-            reg [WIDTH+1:0] pp_carry;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     pp_carry <= {(WIDTH+2){1'b0}};
@@ -165,10 +203,9 @@ module multiplier_radix4_booth_csa #(
                 end
             end
 
-    // Booth recoder & selector
+    // Booth recoder & selector；Booth 重编码器和倍数选择器
+    // Booth 重编码器与倍数选择器
 
-        wire [WIDTH+1:0] z_mult;
-        wire extra_dot;
         booth_recoder_selector #(
             .WIDTH(WIDTH)
         ) booth_recoder_selector_inst (
@@ -178,9 +215,8 @@ module multiplier_radix4_booth_csa #(
             .extra_dot(extra_dot)
         );
 
-    // CSA
+    // CSA；进位保存加法器
 
-        wire [WIDTH+1:0] csa_sum, csa_carry;
         carry_save_adder #(
             .WIDTH(WIDTH+2)
         ) csa_inst (
@@ -193,8 +229,6 @@ module multiplier_radix4_booth_csa #(
 
     // 2位加法器
 
-        wire [1:0] add2_sum;
-        wire add2_cout;
         k_bit_adder #(
             .WIDTH(2)
         ) add2_inst (
@@ -205,9 +239,8 @@ module multiplier_radix4_booth_csa #(
             .cout(add2_cout)
         );
     
-    // k位合并加法器
+    // k+2位合并加法器
 
-        wire [WIDTH+1:0] adder_sum;
         k_bit_adder #(
             .WIDTH(WIDTH+2)
         ) adder_inst (

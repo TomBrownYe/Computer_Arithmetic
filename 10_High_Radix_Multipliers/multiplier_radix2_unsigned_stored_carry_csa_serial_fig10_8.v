@@ -2,7 +2,7 @@
 `include "k_bit_adder_in_10.v"
 `include "carry_save_adder_in_10.v"
 
-module multiplier_radix2_csa_fig10_8 #(
+module multiplier_radix2_unsigned_stored_carry_csa_serial_fig10_8 #(
     parameter WIDTH = 32  // 参数化位宽，默认为 32 位
 )(
     input  wire                 clk,          // 系统时钟
@@ -19,11 +19,50 @@ module multiplier_radix2_csa_fig10_8 #(
     // 数据输出
     output wire [2*WIDTH-1:0]   product       // 2k位无符号乘积 (p)
 );
+    // 内部信号
+        // 计数器参数
+            parameter CNT_WIDTH = $clog2(WIDTH); // 计数器位宽
+
+        // 有限状态机状态编码
+            parameter IDLE  = 0; // 空闲状态
+            parameter WORK  = 1; // 工作状态
+            parameter MERGE = 2; // 合并状态（持续1拍，用底部的k位加法器将最后残留的pp_sum和pp_carry合并）
+            parameter DONE  = 3; // 完成状态
+
+        // 控制逻辑寄存器
+            // 计数器寄存器
+                reg [CNT_WIDTH-1:0] cnt; // 计数器
+
+            // 有限状态机寄存器
+                reg [1:0] state, next_state; // 当前状态与下一状态
+
+        // 数据寄存器
+            // 被乘数寄存器
+                reg [WIDTH-1:0] multiplicand_reg; // 锁存的被乘数
+
+            // 高半区pp_sum寄存器
+                reg [WIDTH-1:0] pp_sum; // 高半区部分积的和位
+
+            // 高半区pp_carry寄存器
+                reg [WIDTH-1:0] pp_carry; // 高半区部分积的进位位
+
+            // 低半区共享移位寄存器pp_low
+                reg [WIDTH-1:0] pp_low; // 低半区乘数与移位数据
+
+        // MUX 信号
+            // MUX1: 倍数生成MUX
+                wire [WIDTH-1:0] MUX_a; // 根据乘数最低位选择被乘数或零
+
+        // CSA 信号
+                wire [WIDTH-1:0] csa_sum; // CSA 输出的和
+                wire [WIDTH-1:0] csa_carry; // CSA 输出的进位
+
+        // k位加法器信号
+                wire [WIDTH-1:0] adder_sum; // k位加法器输出的和
+                wire adder_cout; // k位加法器输出的进位
+
     // 控制逻辑设定
         // 计数器
-            parameter CNT_WIDTH = $clog2(WIDTH); // 计数器位宽
-        
-            reg [CNT_WIDTH-1:0] cnt; // 计数器
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     cnt <= {CNT_WIDTH{1'b0}};
@@ -37,12 +76,6 @@ module multiplier_radix2_csa_fig10_8 #(
             end
 
         // 有限状态机
-            parameter IDLE  = 0; // 空闲状态
-            parameter WORK  = 1; // 工作状态
-            parameter MERGE = 2; // 合并状态（持续1拍，用底部的k位加法器将最后残留的pp_sum和pp_carry合并）
-            parameter DONE  = 3; // 完成状态
-
-            reg[1:0] state, next_state;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     state <= IDLE;
@@ -85,7 +118,6 @@ module multiplier_radix2_csa_fig10_8 #(
     // 寄存器设定
 
         // 被乘数寄存器
-            reg [WIDTH-1:0] multiplicand_reg; 
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     multiplicand_reg <= {WIDTH{1'b0}};
@@ -96,7 +128,6 @@ module multiplier_radix2_csa_fig10_8 #(
             end
         
         // 高半区pp_sum寄存器
-            reg [WIDTH-1:0] pp_sum;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     pp_sum <= {WIDTH{1'b0}};
@@ -113,7 +144,6 @@ module multiplier_radix2_csa_fig10_8 #(
             end
         
         // 高半区pp_carry寄存器
-            reg [WIDTH-1:0] pp_carry;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     pp_carry <= {WIDTH{1'b0}};
@@ -127,7 +157,6 @@ module multiplier_radix2_csa_fig10_8 #(
             end
         
         // 低半区共享移位寄存器pp_low
-            reg [WIDTH-1:0] pp_low;
             always@(posedge clk or negedge rst_n) begin
                 if(!rst_n) begin
                     pp_low <= {WIDTH{1'b0}};
@@ -140,14 +169,13 @@ module multiplier_radix2_csa_fig10_8 #(
                 end
             end
 
-    // MUX
+    // MUX；倍数多路选择器
 
         // MUX1: 倍数生成MUX
-            wire [WIDTH-1:0] MUX_a = pp_low[0] ? multiplicand_reg : {WIDTH{1'b0}};
+            assign MUX_a = pp_low[0] ? multiplicand_reg : {WIDTH{1'b0}};
     
-    // CSA
+    // CSA；进位保存加法器
 
-        wire [WIDTH-1:0] csa_sum, csa_carry;
         carry_save_adder #(
             .WIDTH(WIDTH)
         ) csa_inst (
@@ -160,8 +188,6 @@ module multiplier_radix2_csa_fig10_8 #(
 
     // k位加法器
 
-        wire [WIDTH-1:0] adder_sum;
-        wire adder_cout;
         k_bit_adder #(
             .WIDTH(WIDTH)
         ) adder_inst (
