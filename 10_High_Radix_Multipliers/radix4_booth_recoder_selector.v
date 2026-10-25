@@ -1,5 +1,5 @@
-// 本模块对应 Fig 10.10：用于保留进位或并行乘法的 Booth 重编码与倍数选择子模块,可并行化
-module booth_recoder_selector #(
+// 本模块对应 Fig 10.10：用于保留进位或并行乘法的radix-4 Booth 重编码与倍数选择子模块,可并行化
+module radix4_booth_recoder_selector #(
     parameter WIDTH = 32  // 被乘数 a 的位宽 k
 )(
     input  wire [WIDTH-1:0]   a,          // k位有符号被乘数 (Multiplicand)

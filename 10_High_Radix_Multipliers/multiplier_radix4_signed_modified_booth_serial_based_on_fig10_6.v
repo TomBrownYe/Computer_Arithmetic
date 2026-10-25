@@ -69,7 +69,7 @@ module multiplier_radix4_signed_modified_booth_serial_based_on_fig10_6 #(
             wire Enable; // MUX 的非零倍数使能信号
             wire [WIDTH:0] MUX; // MUX 输出的被乘数倍数值
 
-        // k位加法器
+        // k+2位加法器
 
             wire [WIDTH+1:0] sub_add1; // 加法器第一个输入操作数
             wire [WIDTH+1:0] sub_add2; // 加法器第二个输入操作数
@@ -186,7 +186,7 @@ module multiplier_radix4_signed_modified_booth_serial_based_on_fig10_6 #(
         assign MUX = Enable ? (Select ? {multiplicand_reg, 1'b0}
                             : {multiplicand_reg[WIDTH-1], multiplicand_reg}) : {(WIDTH+1){1'b0}};
 
-    // k位加法器
+    // k+2位加法器
 
         assign sub_add1 = neg ? ~{MUX[WIDTH],MUX} : {MUX[WIDTH],MUX};
         assign sub_add2 = {{2{partial_product[2*WIDTH-1]}}, partial_product[2*WIDTH-1:WIDTH]};

@@ -2,7 +2,7 @@
 // 采用双 Booth 重编码子模块与两级 CSA 树的有符号基-16 存储进位右移乘法器
 `include "k_bit_adder_in_10.v"
 `include "carry_save_adder_in_10.v"
-`include "Booth_recoder_and_selector.v"
+`include "radix4_booth_recoder_selector.v"
 
 module multiplier_radix16_signed_double_booth_two_stage_csa_stored_carry #(
     parameter WIDTH = 32  // 参数化位宽，默认为 32 位（需为 4 的倍数）
@@ -245,7 +245,7 @@ module multiplier_radix16_signed_double_booth_two_stage_csa_stored_carry #(
     // Booth recoder & selector；Booth 重编码器和倍数选择器
     // Booth 重编码器与倍数选择器
 
-        booth_recoder_selector #(
+        radix4_booth_recoder_selector #(
             .WIDTH(WIDTH)
         ) booth_low (
             .a(multiplicand_reg),
@@ -254,7 +254,7 @@ module multiplier_radix16_signed_double_booth_two_stage_csa_stored_carry #(
             .extra_dot(extra_dot0)
         );
 
-        booth_recoder_selector #(
+        radix4_booth_recoder_selector #(
             .WIDTH(WIDTH)
         ) booth_high (
             .a(multiplicand_reg),

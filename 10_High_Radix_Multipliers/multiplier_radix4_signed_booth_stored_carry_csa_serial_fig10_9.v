@@ -1,7 +1,7 @@
 // 本架构参见 Fig 10.9：例化 Fig 10.10 子模块与 CSA 的有符号基-4 存储进位右移乘法器
 `include "k_bit_adder_in_10.v"
 `include "carry_save_adder_in_10.v"
-`include "Booth_recoder_and_selector.v"
+`include "radix4_booth_recoder_selector.v"
 
 module multiplier_radix4_signed_booth_stored_carry_csa_serial_fig10_9 #(
     parameter WIDTH = 32  // 参数化位宽，默认为 32 位（需为偶数）
@@ -206,7 +206,7 @@ module multiplier_radix4_signed_booth_stored_carry_csa_serial_fig10_9 #(
     // Booth recoder & selector；Booth 重编码器和倍数选择器
     // Booth 重编码器与倍数选择器
 
-        booth_recoder_selector #(
+        radix4_booth_recoder_selector #(
             .WIDTH(WIDTH)
         ) booth_recoder_selector_inst (
             .a(multiplicand_reg),
